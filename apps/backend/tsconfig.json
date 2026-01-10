@@ -1,0 +1,10 @@
+{
+  "extends": "@cf-starter/tsconfig/node.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "lib": ["ESNext", "WebWorker"],
+    "esModuleInterop": true,
+    "types": ["@cloudflare/workers-types", "@types/node"]
+  }
+}

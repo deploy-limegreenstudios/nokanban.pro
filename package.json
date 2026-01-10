@@ -1,0 +1,33 @@
+{
+  "name": "cf-starter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "build": "pnpm --recursive --filter \"./apps/*\" build",
+    "build:web": "pnpm --filter web build",
+    "build:backend": "pnpm --filter backend deploy",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm --recursive --filter \"./apps/*\" typecheck",
+    "clean": "pnpm --recursive exec rm -rf node_modules dist .output .turbo && rm -rf node_modules",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "typescript": "^5.9.3"
+  }
+}

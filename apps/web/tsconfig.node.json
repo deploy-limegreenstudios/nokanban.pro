@@ -1,0 +1,12 @@
+{
+  "extends": "@cf-starter/tsconfig/node.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true
+  },
+  "include": ["vite.config.ts"]
+}

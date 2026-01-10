@@ -1,0 +1,26 @@
+name = "backend"
+main = "src/index.ts"
+compatibility_date = "2025-12-10"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cf-starter-db"
+database_id = "local"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cf-starter-bucket"
+preview_bucket_name = "cf-starter-bucket-preview"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "local-kv"
+preview_id = "local-kv-preview"
+
+[triggers]
+crons = ["0 0 * * *"]
