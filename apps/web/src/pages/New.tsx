@@ -25,15 +25,17 @@ export function New() {
           const exportedData = await exportBoard()
 
           // Trigger download
-          const blob = new Blob([exportedData], { type: 'application/json' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `${existing.title}-${new Date().toISOString().split('T')[0]}.json`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
+          if (exportedData) {
+            const blob = new Blob([exportedData], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${existing.title}-${new Date().toISOString().split('T')[0]}.json`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+          }
 
           // Delete the old board and its associated data
           await db.cards
