@@ -1,4 +1,4 @@
-name = "backend"
+name = "nokanban"
 main = "src/index.ts"
 account_id = "9c76768311f305cecf8b02a25969e3c3"
 compatibility_date = "2025-12-10"

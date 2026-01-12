@@ -162,7 +162,7 @@ export function Home() {
       }
 
       // Navigate to shared board
-      navigate(`/board/${boardName}`)
+      navigate(`/${boardName}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to share board')
       setShowPinPrompt(false)

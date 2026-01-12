@@ -19,7 +19,7 @@ interface ShareDialogProps {
 
 export function ShareDialog({ open, onOpenChange, boardName }: ShareDialogProps) {
   const [copied, setCopied] = React.useState(false)
-  const shareUrl = `${window.location.origin}/board/${boardName}`
+  const shareUrl = `${window.location.origin}/${boardName}`
 
   const handleCopy = async () => {
     try {

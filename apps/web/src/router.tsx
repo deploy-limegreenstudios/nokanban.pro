@@ -3,6 +3,7 @@ import { HomeLayout } from './layouts/HomeLayout'
 import { GlobalError } from './pages/GlobalError'
 import { Home } from './pages/Home'
 import { LocalBoard } from './pages/LocalBoard'
+import { New } from './pages/New'
 import { NotFound } from './pages/NotFound'
 import { SharedBoard } from './pages/SharedBoard'
 
@@ -13,10 +14,13 @@ const Router = () => {
         <Routes>
           <Route element={<HomeLayout />}>
             <Route path="/" element={<Home />} />
+            <Route path="/new" element={<New />} />
             <Route path="/local/:id" element={<LocalBoard />} />
-            <Route path="/board/:name" element={<SharedBoard />} />
           </Route>
           <Route path="/404" element={<NotFound />} />
+          <Route element={<HomeLayout />}>
+            <Route path="/:name" element={<SharedBoard />} />
+          </Route>
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
       </GlobalError>
