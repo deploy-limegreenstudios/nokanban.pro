@@ -1,3 +1,4 @@
+import { ColumnDeleteDialog } from '@/components/dialogs/ColumnDeleteDialog'
 import { cn } from '@/lib/utils'
 import * as React from 'react'
 
@@ -37,19 +38,32 @@ export function KanbanBoard({
   onUpdateCard,
   onDeleteCard,
   onMoveCard,
+  onReorderCards,
   readOnly = false,
 }: KanbanBoardProps) {
   const [draggedCard, setDraggedCard] = React.useState<{
     card: Card
     sourceColumnId: string
   } | null>(null)
-  const [dropTarget, setDropTarget] = React.useState<string | null>(null)
+  const [dropTarget, setDropTarget] = React.useState<{
+    columnId: string
+    cardId?: string
+    position?: 'before' | 'after'
+  } | null>(null)
   const [addingCardTo, setAddingCardTo] = React.useState<string | null>(null)
   const [newCardTitle, setNewCardTitle] = React.useState('')
   const [editingCard, setEditingCard] = React.useState<string | null>(null)
   const [editingColumn, setEditingColumn] = React.useState<string | null>(null)
   const [showAddColumn, setShowAddColumn] = React.useState(false)
+  const [moveCardMenu, setMoveCardMenu] = React.useState<{
+    card: Card
+    sourceColumnId: string
+    position: { x: number; y: number }
+  } | null>(null)
+  const [columnToDelete, setColumnToDelete] = React.useState<Column | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const longPressTimerRef = React.useRef<number | null>(null)
+  const dragStartPosRef = React.useRef<{ x: number; y: number } | null>(null)
 
   React.useEffect(() => {
     if (addingCardTo && inputRef.current) {
@@ -58,27 +72,93 @@ export function KanbanBoard({
   }, [addingCardTo])
 
   const handleDragStart = (card: Card, columnId: string) => {
+    // Cancel long-press when drag starts
+    handleLongPressEnd()
     setDraggedCard({ card, sourceColumnId: columnId })
   }
 
   const handleDragOver = (e: React.DragEvent, columnId: string) => {
     e.preventDefault()
-    setDropTarget(columnId)
+    setDropTarget({ columnId })
+  }
+
+  const handleCardDragOver = (
+    e: React.DragEvent,
+    columnId: string,
+    cardId: string,
+    _cardIndex: number,
+  ) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!draggedCard) return
+
+    // Determine if we should drop before or after based on mouse position
+    const cardElement = e.currentTarget as HTMLElement
+    const rect = cardElement.getBoundingClientRect()
+    const midPoint = rect.top + rect.height / 2
+    const position = e.clientY < midPoint ? 'before' : 'after'
+
+    setDropTarget({ columnId, cardId, position })
   }
 
   const handleDrop = (targetColumnId: string) => {
-    if (!draggedCard || draggedCard.sourceColumnId === targetColumnId) {
+    if (!draggedCard) {
       setDraggedCard(null)
       setDropTarget(null)
       return
     }
 
-    // Move card to target column
+    const isSameColumn = draggedCard.sourceColumnId === targetColumnId
     const targetColumn = columns.find((c) => c.id === targetColumnId)
     if (!targetColumn) return
 
-    const newPosition = targetColumn.cards.length
-    onMoveCard?.(draggedCard.card.id, targetColumnId, newPosition)
+    // Calculate new position
+    let newPosition = targetColumn.cards.length
+
+    if (dropTarget?.cardId) {
+      // Dropping on a specific card
+      const targetCardIndex = targetColumn.cards.findIndex((c) => c.id === dropTarget.cardId)
+      if (targetCardIndex !== -1) {
+        newPosition = dropTarget.position === 'before' ? targetCardIndex : targetCardIndex + 1
+
+        // Adjust position if moving within same column
+        if (isSameColumn) {
+          const currentCardIndex = targetColumn.cards.findIndex((c) => c.id === draggedCard.card.id)
+          if (currentCardIndex !== -1 && currentCardIndex < newPosition) {
+            newPosition--
+          }
+        }
+      }
+    }
+
+    if (isSameColumn) {
+      // Reorder within same column
+      const currentCardIndex = targetColumn.cards.findIndex((c) => c.id === draggedCard.card.id)
+      if (currentCardIndex !== newPosition && currentCardIndex !== -1) {
+        const updates = targetColumn.cards
+          .filter((c) => c.id !== draggedCard.card.id)
+          .flatMap((c, idx) => {
+            if (idx === newPosition) {
+              return [
+                { id: draggedCard.card.id, position: newPosition },
+                { id: c.id, position: idx + 1 },
+              ]
+            }
+            return { id: c.id, position: idx >= newPosition ? idx + 1 : idx }
+          })
+
+        // Add the dragged card if it wasn't added in the map
+        if (!updates.some((u) => u.id === draggedCard.card.id)) {
+          updates.push({ id: draggedCard.card.id, position: newPosition })
+        }
+
+        onReorderCards?.(updates)
+      }
+    } else {
+      // Move to different column
+      onMoveCard?.(draggedCard.card.id, targetColumnId, newPosition)
+    }
 
     setDraggedCard(null)
     setDropTarget(null)
@@ -117,10 +197,69 @@ export function KanbanBoard({
     }
   }
 
+  // Long press handlers
+  const handleLongPressStart = (
+    e: React.MouseEvent | React.TouchEvent,
+    card: Card,
+    columnId: string,
+  ) => {
+    if (readOnly) return
+
+    const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
+    const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
+
+    // Store initial position to detect movement
+    dragStartPosRef.current = { x: clientX, y: clientY }
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      setMoveCardMenu({
+        card,
+        sourceColumnId: columnId,
+        position: { x: clientX, y: clientY },
+      })
+      dragStartPosRef.current = null
+    }, 500)
+  }
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    dragStartPosRef.current = null
+  }
+
+  const handleLongPressMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!dragStartPosRef.current) return
+
+    const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
+    const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
+
+    // Cancel long-press if user moves more than 10px (they're trying to drag)
+    const deltaX = Math.abs(clientX - dragStartPosRef.current.x)
+    const deltaY = Math.abs(clientY - dragStartPosRef.current.y)
+
+    if (deltaX > 10 || deltaY > 10) {
+      handleLongPressEnd()
+    }
+  }
+
+  const handleMoveCardTo = (targetColumnId: string) => {
+    if (!moveCardMenu) return
+
+    const targetColumn = columns.find((c) => c.id === targetColumnId)
+    if (!targetColumn) return
+
+    const newPosition = targetColumn.cards.length
+    onMoveCard?.(moveCardMenu.card.id, targetColumnId, newPosition)
+    setMoveCardMenu(null)
+  }
+
   return (
-    <div className="flex h-full gap-4 overflow-x-auto p-4 pb-4 justify-center">
+    <div className="flex h-full gap-3 md:gap-4 overflow-x-auto p-2 md:p-4 pb-4 md:justify-center">
       {columns.map((column) => {
-        const isDropActive = dropTarget === column.id && draggedCard?.sourceColumnId !== column.id
+        const isDropActive =
+          dropTarget?.columnId === column.id && draggedCard?.sourceColumnId !== column.id
 
         return (
           <div
@@ -129,7 +268,7 @@ export function KanbanBoard({
             onDrop={() => handleDrop(column.id)}
             onDragLeave={() => setDropTarget(null)}
             className={cn(
-              'min-w-[280px] max-w-[280px] rounded-xl p-3 transition-all duration-200',
+              'min-w-[260px] md:min-w-[280px] max-w-[260px] md:max-w-[280px] rounded-xl p-3 transition-all duration-200',
               'bg-neutral-100 dark:bg-neutral-900 border-2',
               isDropActive
                 ? 'border-neutral-400 dark:border-neutral-600 border-dashed bg-neutral-200 dark:bg-neutral-800'
@@ -169,18 +308,10 @@ export function KanbanBoard({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (column.cards.length > 0) {
-                      if (
-                        confirm(`Delete "${column.title}" and all ${column.cards.length} cards?`)
-                      ) {
-                        onDeleteColumn?.(column.id)
-                      }
-                    } else {
-                      onDeleteColumn?.(column.id)
-                    }
+                    setColumnToDelete(column)
                   }}
                   className="rounded p-1 text-neutral-400 dark:text-neutral-500 transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-red-600 dark:hover:text-red-400"
-                  aria-label="Delete card"
+                  aria-label="Delete column"
                 >
                   <svg
                     width="16"
@@ -202,8 +333,10 @@ export function KanbanBoard({
             <div className="flex min-h-[100px] flex-col gap-2">
               {column.cards
                 .sort((a, b) => a.position - b.position)
-                .map((card) => {
+                .map((card, cardIndex) => {
                   const isDragging = draggedCard?.card.id === card.id
+                  const isDropTarget =
+                    dropTarget?.columnId === column.id && dropTarget?.cardId === card.id
 
                   return (
                     <div
@@ -211,10 +344,25 @@ export function KanbanBoard({
                       draggable={!readOnly}
                       onDragStart={() => handleDragStart(card, column.id)}
                       onDragEnd={() => setDraggedCard(null)}
+                      onDragOver={(e) => handleCardDragOver(e, column.id, card.id, cardIndex)}
+                      onMouseDown={(e) => handleLongPressStart(e, card, column.id)}
+                      onMouseMove={handleLongPressMove}
+                      onMouseUp={handleLongPressEnd}
+                      onMouseLeave={handleLongPressEnd}
+                      onTouchStart={(e) => handleLongPressStart(e, card, column.id)}
+                      onTouchMove={handleLongPressMove}
+                      onTouchEnd={handleLongPressEnd}
+                      onTouchCancel={handleLongPressEnd}
                       className={cn(
                         'cursor-grab rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 p-3 shadow-sm transition-all duration-150',
                         'hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing',
                         isDragging && 'rotate-2 opacity-50',
+                        isDropTarget &&
+                          dropTarget.position === 'before' &&
+                          'border-t-4 border-t-blue-500',
+                        isDropTarget &&
+                          dropTarget.position === 'after' &&
+                          'border-b-4 border-b-blue-500',
                       )}
                     >
                       {editingCard === card.id ? (
@@ -313,7 +461,7 @@ export function KanbanBoard({
 
       {/* Add Column */}
       {!readOnly && (
-        <div className="flex flex-col min-w-[280px]">
+        <div className="flex flex-col min-w-[260px] md:min-w-[280px]">
           {showAddColumn ? (
             <div className="rounded-xl bg-neutral-100 dark:bg-neutral-900 p-3">
               <form onSubmit={handleAddColumn}>
@@ -373,6 +521,62 @@ export function KanbanBoard({
             </button>
           )}
         </div>
+      )}
+
+      {/* Move Card Menu */}
+      {moveCardMenu && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setMoveCardMenu(null)}
+            onKeyDown={(e) => e.key === 'Escape' && setMoveCardMenu(null)}
+          />
+
+          {/* Menu */}
+          <div
+            className="fixed z-50 min-w-[200px] rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 shadow-xl"
+            style={{
+              left: `${moveCardMenu.position.x}px`,
+              top: `${moveCardMenu.position.y}px`,
+              transform: 'translate(-50%, -100%) translateY(-8px)',
+            }}
+          >
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                Move to...
+              </p>
+              <div className="mt-1 space-y-1">
+                {columns
+                  .filter((col) => col.id !== moveCardMenu.sourceColumnId)
+                  .map((col) => (
+                    <button
+                      key={col.id}
+                      type="button"
+                      onClick={() => handleMoveCardTo(col.id)}
+                      className="w-full rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      {col.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Column Delete Confirmation Dialog */}
+      {columnToDelete && (
+        <ColumnDeleteDialog
+          open={!!columnToDelete}
+          onOpenChange={(open) => !open && setColumnToDelete(null)}
+          columnTitle={columnToDelete.title}
+          cardCount={columnToDelete.cards.length}
+          onConfirmDelete={() => {
+            onDeleteColumn?.(columnToDelete.id)
+            setColumnToDelete(null)
+          }}
+        />
       )}
     </div>
   )

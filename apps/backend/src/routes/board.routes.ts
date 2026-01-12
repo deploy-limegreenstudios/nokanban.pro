@@ -73,9 +73,12 @@ const protectedRoutes = new Hono<{
   }
 }>()
 
-protectedRoutes.use('*', extractBoardId)
-protectedRoutes.use('*', pinAuthMiddleware)
-protectedRoutes.use('*', boardRateLimitMiddleware({ limit: 100, windowMs: 60 * 1000 }))
+protectedRoutes.use('/:name/*', extractBoardId)
+protectedRoutes.use('/:name/*', pinAuthMiddleware)
+protectedRoutes.use('/:name/*', boardRateLimitMiddleware({ limit: 100, windowMs: 60 * 1000 }))
+protectedRoutes.use('/:name', extractBoardId)
+protectedRoutes.use('/:name', pinAuthMiddleware)
+protectedRoutes.use('/:name', boardRateLimitMiddleware({ limit: 100, windowMs: 60 * 1000 }))
 
 // Delete board
 protectedRoutes.delete('/:name', async (c) => {
